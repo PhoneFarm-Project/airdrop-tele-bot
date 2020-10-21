@@ -63,7 +63,7 @@ function firstMessage(ctx) {
   msg += '\n';
   msg += '3.📌 Follow us on Twitter: https://twitter.com/PhonefarmF';
   msg += '\n';
-  msg += `4.📌 Retweet our campaign tweet: ${SHARE_TWEET}`;
+  msg += `4.📌 Retweet our campaign tweet with 2 friends mention: ${SHARE_TWEET}`;
   msg += '\n';
   msg += '5.📌 Join our channel: https://t.me/phonefarm_official';
   msg += '\n';
@@ -80,7 +80,7 @@ function getStatusMessage(ctx) {
   finalResult += ctx.from.username;
   finalResult += '\n';
   finalResult += '🔑 ETH Address: ';
-  finalResult += ctx.session.eth || '';
+  finalResult += ctx.session.address || '';
   finalResult += '\n';
   finalResult += '🐦 Twitter username: ';
   finalResult += ctx.session.twitter || '';
@@ -88,7 +88,7 @@ function getStatusMessage(ctx) {
   finalResult += '\n';
 
   finalResult += '1.📌 Fill ETH address';
-  if (ctx.session.eth) {
+  if (ctx.session.address) {
     finalResult += ' ✅';
   } else {
     finalResult += ' ❌';
@@ -102,13 +102,13 @@ function getStatusMessage(ctx) {
   }
   finalResult += '\n';
   finalResult += '3.📌 Follow us on Twitter: https://twitter.com/PhonefarmF';
-  if (ctx.session.followed === '1') {
+  if (ctx.session.following === '1') {
     finalResult += ' ✅';
   } else {
     finalResult += ' ❌';
   }
   finalResult += '\n';
-  finalResult += `4.📌 Retweet our campaign tweet: ${SHARE_TWEET}`;
+  finalResult += `4.📌 Retweet our campaign tweet with 2 friends mention: ${SHARE_TWEET}`;
   if (ctx.session.retweet === '1') {
     finalResult += ' ✅';
   } else {
@@ -116,7 +116,7 @@ function getStatusMessage(ctx) {
   }
   finalResult += '\n';
   finalResult += '5.📌 Join our channel: https://t.me/phonefarm_official';
-  if (ctx.session.joinTele === '1') {
+  if (ctx.session.telegram === '1') {
     finalResult += ' ✅';
   } else {
     finalResult += ' ❌';
@@ -126,17 +126,17 @@ function getStatusMessage(ctx) {
 }
 
 async function initUserState(ctx) {
-  ctx.session.eth = '';
+  ctx.session.address = '';
   ctx.session.twitter = '';
-  ctx.session.followed = '0';
+  ctx.session.following = '0';
   ctx.session.retweet = '0';
-  ctx.session.joinTele = '0';
+  ctx.session.telegram = '0';
 }
 
 function goNextStep(ctx) {
-  if (ctx.session.eth === '') ctx.session.step = 1;
+  if (ctx.session.address === '') ctx.session.step = 1;
   else if (ctx.session.twitter === '') ctx.session.step = 2;
-  else if (ctx.session.followed === '0') ctx.session.step = 3;
+  else if (ctx.session.following === '0') ctx.session.step = 3;
   else if (ctx.session.retweet === '0') ctx.session.step = 4;
   else ctx.session.step = 5;
 }
@@ -146,7 +146,7 @@ async function stepCheck(ctx) {
     case 1:
       console.log('step 1: check valid eth address');
       if (ethereum_address.isAddress(ctx.message.text.toString())) {
-        ctx.session.eth = ctx.message.text;
+        ctx.session.address = ctx.message.text;
         goNextStep(ctx);
         ctx.reply('2.📌  Please input your Twitter username:');
       } else {
@@ -175,7 +175,9 @@ async function stepCheck(ctx) {
       break;
     case 3:
       console.log('step 3: check follow on Twitter');
-      await ctx.reply(`4.📌  Please retweet our campaign tweet: ${SHARE_TWEET}`);
+      await ctx.reply(
+        `4.📌  Please retweet our campaign tweet with 2 friends mention: ${SHARE_TWEET}`
+      );
       var keyboard = Markup.inlineKeyboard([Markup.callbackButton('DONE ✅', 'check')], {
         columns: 1,
       });
@@ -190,7 +192,7 @@ async function stepCheck(ctx) {
       try {
         let user = await ctx.telegram.getChatMember(GROUP_ID, ctx.from.id);
         if (user && !user.is_bot) {
-          ctx.session.joinTele = '1';
+          ctx.session.telegram = '1';
           ctx.session.step = 5;
         }
         var status = getStatusMessage(ctx);
@@ -252,7 +254,7 @@ bot.action('startAirdrop', ctx => {
 bot.action('check', async ctx => {
   console.log('checking on step ', ctx.session.step);
   if (ctx.session.step === 2) {
-    ctx.session.followed = '1';
+    ctx.session.following = '1';
     ctx.session.step = 3;
   } else if (ctx.session.step === 3) {
     ctx.session.retweet = '1';
