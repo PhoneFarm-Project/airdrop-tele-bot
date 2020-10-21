@@ -1,0 +1,42 @@
+{
+  "name": "phonefarm-tele-bot",
+  "version": "1.0.0",
+  "description": "PhoneFarm Telegram airdrop bot that manages users input data and uses a referral system. Uses Mongodb for storing data Node v8+.",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon index.js"
+  },
+  "author": "Kevin",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^8.2.0",
+    "ethereum-address": "0.0.4",
+    "hashids": "^1.2.2",
+    "mongodb": "3.0.7",
+    "mongoose": "^5.6.7",
+    "node-telegram-bot-api": "^0.30.0",
+    "request": "^2.87.0",
+    "s": "^0.1.1",
+    "telegraf": "^3.6.4",
+    "telegraf-ratelimit": "^2.0.0"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/phonefarm-project/airdrop-tele-bot"
+  },
+  "keywords": [
+    "telegram",
+    "telegraf",
+    "es6",
+    "nodejs",
+    "node.js",
+    "telegram-bot",
+    "telegram-bots",
+    "telegram-api"
+  ],
+  "bugs": {
+    "url": "https://github.com/phonefarm-project/airdrop-tele-bot/issues"
+  },
+  "homepage": "https://github.com/phonefarm-project/airdrop-tele-bot#readme"
+}
