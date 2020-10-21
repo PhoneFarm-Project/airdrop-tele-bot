@@ -8,11 +8,15 @@ var mongoose = require('mongoose');
 const User = require('./user');
 var ethereum_address = require('ethereum-address'); //used for verifying eth address
 
+const SHARE_TWEET = 'https://twitter.com/PhonefarmF/status/1316991901879267330';
+const GROUP_ID = '231399891';
+
 mongoose.connect(config.database, {
   socketTimeoutMS: 45000,
   keepAlive: true,
-  reconnectTries: 10,
   poolSize: 10,
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
 });
 const db = mongoose.connection;
 
@@ -47,7 +51,7 @@ const buttonsLimit = {
   onLimitExceeded: (ctx, next) => {
     if ('callback_query' in ctx.update)
       ctx
-        .answerCbQuery('You`ve pressed buttons too oftern, wait.', true)
+        .answerCbQuery('You`ve pressed buttons too often, wait.', true)
         .catch(err => sendError(err, ctx));
   },
   keyGenerator: ctx => {
@@ -69,10 +73,10 @@ var refByNameAsync = function (ctx) {
   return new Promise(function (resolve, reject) {
     try {
       var RefBy = ctx.session.refBy;
-      var findquery = {
+      var findQuery = {
         refNumber: RefBy,
       };
-      User.findOne(findquery, function (err, result) {
+      User.findOne(findQuery, function (err, result) {
         if (err) throw err;
         if (result == null) {
           //if user doesn't exist
@@ -83,7 +87,7 @@ var refByNameAsync = function (ctx) {
           //if user exists, return it's data
           ctx.session.refByName = result.telegramUser;
           resolve('works');
-          console.log('Found TG USER REFFER BY:', ctx.session.refByName);
+          console.log('Found TG USER REFER BY:', ctx.session.refByName);
         }
       });
     } catch (e) {
@@ -93,7 +97,7 @@ var refByNameAsync = function (ctx) {
   });
 };
 var checkDataAsync = function (ctx) {
-  //checks the inputed user data
+  //checks the input user data
   return new Promise(function (resolve, reject) {
     try {
       if (ethereum_address.isAddress(ctx.session.eth.toString())) {
@@ -110,26 +114,25 @@ var checkDataAsync = function (ctx) {
   });
 };
 var findExistingAsync = function (ctx) {
-  //finds existing members in the database
-  return new Promise(function (resolve, reject) {
+  return new Promise((resolve, reject) => {
     try {
-      console.log('FINDING EXISTING');
+      console.log('Finding user in refer database...');
       var userID = ctx.from.id.toString();
-      var findquery = {
-        refNumber: userID,
-      };
-      User.findOne(findquery, function (err, result) {
-        if (err) throw err;
-        console.log('Finding result', result);
-        if (result == null) {
-          resolve("user doesn't exist");
-          //if user doesn't exist
-          return false;
-        } else {
+      User.findOne(
+        {
+          refNumber: userID,
+        },
+        (err, result) => {
+          if (err) throw err;
+          if (result == null) {
+            console.log('user has no refer');
+            resolve("user doesn't exist");
+            return;
+          }
           //returns data if user exists in
-          console.log('DATA found!');
+          console.log('user found!');
           var refNumber = ctx.session.refNumber;
-          console.log('REF number in finding exisit:', refNumber);
+          console.log('REF number in finding exist:', refNumber);
           User.countDocuments(
             {
               refBy: refNumber,
@@ -151,7 +154,7 @@ var findExistingAsync = function (ctx) {
           ctx.session.found = '1';
           resolve('User found, returning');
         }
-      });
+      );
     } catch (e) {
       reject('error');
       console.log(e);
@@ -165,7 +168,7 @@ var saveDataAsync = function (ctx) {
     try {
       console.log('SAVING DATA');
       var CreationDate = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, ''); //cleans up creation date
-      var EthAddres = ctx.session.eth.toString();
+      var EthAddress = ctx.session.eth.toString();
       var TwitterUser = ctx.session.twitter.toString();
       var TelegramUser = ctx.session.username.toString();
       var RefNumber = ctx.session.refNumber.toString();
@@ -178,13 +181,13 @@ var saveDataAsync = function (ctx) {
       } else {
         RefBy = '0';
       }
-      var findquery = {
+      var findQuery = {
         refNumber: RefNumber,
       };
-      User.findOne(findquery, function (err, result) {
+      User.findOne(findQuery, function (err, result) {
         console.log('FIND ONE');
-        let myobj = new User({
-          ethAddress: EthAddres,
+        let me = new User({
+          ethAddress: EthAddress,
           twitterUser: TwitterUser,
           telegramUser: TelegramUser,
           refNumber: RefNumber,
@@ -201,7 +204,7 @@ var saveDataAsync = function (ctx) {
         console.log('finding result', result);
         if (result == null) {
           //if it doesn't find an existing user, saves the current data
-          myobj.save(function (err) {
+          me.save(function (err) {
             if (err) {
               reject('error saving');
               console.log('Error while saving:', err);
@@ -219,7 +222,7 @@ var saveDataAsync = function (ctx) {
             },
             {
               $set: {
-                ethAddress: EthAddres,
+                ethAddress: EthAddress,
                 twitterUser: TwitterUser,
                 telegramUser: TelegramUser,
                 refNumber: RefNumber,
@@ -261,7 +264,7 @@ const keyboard = Markup.inlineKeyboard(
     // Markup.callbackButton('♻️Refresh', 'refresh'),
     // Markup.callbackButton('Check ✅', 'check'),
     // Markup.callbackButton('Confirm 🏁', 'confirm'),
-    Markup.callbackButton('Get your PhoneFarm Airdrop! 🌱', 'getAirdrop'),
+    Markup.callbackButton('Get your PhoneFarm Airdrop! 🌱', 'startAirdrop'),
   ],
   {
     columns: 2,
@@ -269,256 +272,275 @@ const keyboard = Markup.inlineKeyboard(
 );
 
 function firstMessage(ctx) {
-  var finalResult;
+  var msg;
+  msg = `🔥 Hi ${ctx.from.first_name} ${ctx.from.last_name}, welcome to PhoneFarm Airdrop bot! 🔥`;
+  msg += '\n';
+  msg += 'Please follow the instructions to get 10 PHONE Token 📱';
+  msg += '\n';
+  msg += '\n';
+  msg += '1.📌 Submit your receiver ETH address.';
+  msg += '\n';
+  msg += '2.📌 Submit your Twitter username.';
+  msg += '\n';
+  msg += '3.📌 Follow us on Twitter: https://twitter.com/PhonefarmF';
+  msg += '\n';
+  msg += `4.📌 Retweet our campaign tweet: ${SHARE_TWEET}`;
+  msg += '\n';
+  msg += '5.📌 Join our channel: https://t.me/phonefarm_official';
+  msg += '\n';
+  msg += '\n';
 
-  finalResult = '📱📱 Welcome to PhoneFarm Airdrop bot! 📱📱';
-  finalResult += '\n';
-  finalResult += '\n';
-  finalResult += '1.📌Please click on the buttons and input the required data';
-  finalResult += '\n';
-  finalResult += '2.📌Follow us on Twitter: https://twitter.com/PhonefarmF';
-  finalResult += '\n';
-  finalResult +=
-    '3.Retweet our pinned Twitter: https://twitter.com/PhonefarmF/status/1316991901879267330';
-  finalResult += '\n';
-  finalResult += '4.📌Join our announcement channel: https://t.me/phonefarm_official';
-  finalResult += '\n';
-  finalResult +=
-    '5.📌Every week, we will post weekly tasks and bounties in our announcement channel and our medium page: https://medium.com/@phonefarm.finance';
-  finalResult += '\n';
-  finalResult += '6.⚠️⚠️ Please click CHECK✅ to check the subminssion.⚠️⚠️';
-
-  return finalResult;
+  return msg;
 }
 
-async function check(ctx) {
-  var finalResult;
-  finalResult = '1.Filled in Twitter address';
-  if (ctx.session.twitter) {
-    finalResult += ' ✅';
-  } else {
-    finalResult += ' ❌';
-  }
+function getStatusMessage(ctx) {
+  console.log('status checking', ctx.session);
+  let finalResult;
+
+  finalResult = '👤 Username: ';
+  finalResult += ctx.from.username;
   finalResult += '\n';
-  finalResult += '2.Follow us on Twitter: https://twitter.com/PhonefarmF';
-  if (ctx.session.followed === '1') {
-    finalResult += ' ✅';
-  } else {
-    finalResult += ' ❌';
-  }
+  finalResult += '🔑ETH Address: ';
+  finalResult += ctx.session.eth || '';
   finalResult += '\n';
-  finalResult += '3.Join our channel: https://t.me/phonefarm_official';
-  if (ctx.session.joinTele === '1') {
-    finalResult += ' ✅';
-  } else {
-    finalResult += ' ❌';
-  }
+  finalResult += '🐦Twitter username: ';
+  finalResult += ctx.session.twitter || '';
   finalResult += '\n';
-  finalResult +=
-    '4.Retweet our pinned Twitter: https://twitter.com/PhonefarmF/status/1316991901879267330';
-  if (ctx.session.retweet === '1') {
-    finalResult += ' ✅';
-  } else {
-    finalResult += ' ❌';
-  }
   finalResult += '\n';
-  finalResult += '5.Filled ETH address';
+
+  finalResult += '1.📌 Filled ETH address';
   if (ctx.session.eth) {
     finalResult += ' ✅';
   } else {
     finalResult += ' ❌';
   }
   finalResult += '\n';
-
+  finalResult += '2.📌 Filled in Twitter address';
+  if (ctx.session.twitter) {
+    finalResult += ' ✅';
+  } else {
+    finalResult += ' ❌';
+  }
+  finalResult += '\n';
+  finalResult += '3.📌 Follow us on Twitter: https://twitter.com/PhonefarmF';
+  if (ctx.session.followed === '1') {
+    finalResult += ' ✅';
+  } else {
+    finalResult += ' ❌';
+  }
+  finalResult += '\n';
+  finalResult += `4.📌 Retweet our campaign tweet: ${SHARE_TWEET}`;
+  if (ctx.session.retweet === '1') {
+    finalResult += ' ✅';
+  } else {
+    finalResult += ' ❌';
+  }
+  finalResult += '\n';
+  finalResult += '5.📌 Join our channel: https://t.me/phonefarm_official';
+  if (ctx.session.joinTele === '1') {
+    finalResult += ' ✅';
+  } else {
+    finalResult += ' ❌';
+  }
+  finalResult += '\n';
   return finalResult;
 }
 
-function makeMessage(ctx) {
-  var finalResult;
-  finalResult = '👤ID: ';
-  finalResult += ctx.from.id;
-  finalResult += '\n';
-  finalResult += '🔑ETH Address: ';
-  finalResult += ctx.session.eth;
-  finalResult += '\n';
-  finalResult += '🐦Twitter username: ';
-  finalResult += ctx.session.twitter;
-  finalResult += '\n';
-  finalResult += '💰Referral link: https://t.me/phonefarmBot?start=';
-  finalResult += ctx.session.refNumber;
-  finalResult += '\n';
-  finalResult += '💵Number of referrals: ';
-  finalResult += ctx.session.count;
-  finalResult += '\n';
-  finalResult += '👥Referred by: ';
-  finalResult += ctx.session.refByName;
+// function makeTaskMessage(ctx) {
+//   var finalResult;
+//   finalResult = '👤 Username: ';
+//   finalResult += ctx.from.username;
+//   finalResult += '\n';
+//   finalResult += '🔑ETH Address: ';
+//   finalResult += ctx.session.eth;
+//   finalResult += '\n';
+//   finalResult += '🐦Twitter username: ';
+//   finalResult += ctx.session.twitter;
+//   finalResult += '\n';
+//   return finalResult;
+// }
 
-  return finalResult;
-}
-
-async function initMessage(ctx) {
+async function initUserState(ctx) {
   if (ctx.session.found != '1') {
-    ctx.session.eth = 'nil';
-    ctx.session.twitter = 'nil';
+    ctx.session.eth = '';
+    ctx.session.twitter = '';
+    ctx.session.followed = '0';
     ctx.session.retweet = '0';
     ctx.session.joinTele = '0';
-    ctx.session.followed = '0';
   } else {
     //values already set
   }
 }
 
+function goNextStep(ctx) {
+  if (ctx.session.eth === '') ctx.session.step = 1;
+  else if (ctx.session.twitter === '') ctx.session.step = 2;
+  else if (ctx.session.followed === '0') ctx.session.step = 3;
+  else if (ctx.session.retweet === '0') ctx.session.step = 4;
+  else if (ctx.session.joinTele === '0') ctx.session.step = 5;
+}
+
 async function stepCheck(ctx) {
-  //step check
-  if (ctx.session.step == 2) {
-    ctx.session.twitter = ctx.message.text;
-    var keyboard = Markup.inlineKeyboard([Markup.callbackButton('Check ✅', 'check')], {
-      columns: 1,
-    });
-    ctx.telegram.sendMessage(ctx.from.id, 'Almost Done!', Extra.HTML().markup(keyboard));
-  } else if (ctx.session.step == 1) {
-    if (ethereum_address.isAddress(ctx.message.text.toString())) {
-      ctx.session.eth = ctx.message.text;
-      ctx.session.step = 2;
-      ctx.reply('Input Twitter username, please.');
-    } else {
-      ctx.reply('Please input a valid ethereum address!');
-    }
-  } else {
-    console.log('other data');
+  switch (ctx.session.step) {
+    case 1:
+      console.log('step 1: check valid eth address');
+      if (ethereum_address.isAddress(ctx.message.text.toString())) {
+        ctx.session.eth = ctx.message.text;
+        console.log(ctx.session.eth, ctx.message.text);
+        goNextStep(ctx);
+        ctx.reply('2.📌  Please input your Twitter username:');
+      } else {
+        ctx.reply('1.📌  Please input a valid ethereum address:');
+      }
+      break;
+    case 2:
+      console.log('step 2: check Twitter username');
+      ctx.session.twitter = ctx.message.text;
+      await ctx.reply('3.📌  Please follow us on Twitter: https://twitter.com/PhonefarmF');
+      var keyboard = Markup.inlineKeyboard([Markup.callbackButton('Check ✅', 'check')], {
+        columns: 1,
+      });
+      ctx.telegram.sendMessage(
+        ctx.from.id,
+        'When it done, please check status by hit the ✅ button bellow!',
+        Extra.HTML().markup(keyboard)
+      );
+      break;
+    case 3:
+      console.log('step 3: check follow on Twitter');
+      break;
+    case 4:
+      console.log('step 4: check retweet');
+      break;
+    case 5:
+      console.log('step 5: check join channel');
+      break;
+    default:
+      break;
   }
 }
 
 //bot init
 const bot = new Telegraf(config.telegraf_token); // Let's instantiate a bot using our token.
 bot.use(session());
-bot.use(Telegraf.log());
+// bot.use(Telegraf.log());
 
 bot.start(async ctx => {
   //bot start
   //parameter parsing
-  ctx.session.refByName = '/';
-  ctx.session.count = 0;
-  findExistingAsync(ctx).then(function (uid) {
-    var len = ctx.message.text.length;
-    if (ctx.from.username == null) {
-      //user must have a valid username set.
-      var nousrmsg = 'Please set a username first then contact the bot again!';
-      ctx.telegram.sendMessage(ctx.from.id, nousrmsg);
-    } else {
-      ctx.session.username = ctx.from.username;
-      var ref = ctx.message.text.slice(7, len);
-      ctx.session.refBy = ref;
-      console.log('ref:', ref);
-      if (ref.length != 0) {
-        var refmsg = 'Referred by: ' + ctx.session.refBy;
+  // ctx.session.refByName = '/';
+  // ctx.session.count = 0;
+  // findExistingAsync(ctx).then(function (uid) {
+  // var len = ctx.message.text.length;
+  if (ctx.from.username == null) {
+    //user must have a valid username set.
+    ctx.telegram.sendMessage(
+      ctx.from.id,
+      'Please set a username first then contact the bot again!'
+    );
+  } else {
+    // ctx.session.username = ctx.from.username;
+    // var ref = ctx.message.text.slice(7, len);
+    // ctx.session.refBy = ref;
+    // console.log('ref:', ref);
+    // if (ref.length != 0) {
+    //   var refMsg = 'Referred by: ' + ctx.session.refBy;
 
-        ctx.session.refNumber = ctx.from.id.toString();
-        ctx.telegram.sendMessage(ctx.from.id, refmsg);
-        console.log('refer', ctx.session.refBy);
-      } else {
-        ctx.session.refNumber = ctx.from.id.toString();
-        console.log('session ref number:', ctx.session.refNumber);
-      }
-      //save referer
-      ctx.session.telegram = ctx.message.chat.username;
-      ctx.session.language = ctx.message.from.language_code;
+    //   ctx.session.refNumber = ctx.from.id.toString();
+    //   ctx.telegram.sendMessage(ctx.from.id, refMsg);
+    //   console.log('refer', ctx.session.refBy);
+    // } else {
+    //   ctx.session.refNumber = ctx.from.id.toString();
+    //   console.log('session ref number:', ctx.session.refNumber);
+    // }
+    //save referer
+    // ctx.session.telegram = ctx.message.chat.username;
+    // ctx.session.language = ctx.message.from.language_code;
 
-      initMessage(ctx);
-      var msg = firstMessage(ctx);
-      // var msg = makeMessage(ctx);
+    initUserState(ctx);
+    var msg = firstMessage(ctx);
+    // var msg = makeTaskMessage(ctx);
 
-      ctx.telegram.sendMessage(ctx.from.id, msg, Extra.markup(keyboard));
-    }
-  });
+    ctx.telegram.sendMessage(ctx.from.id, msg, Extra.markup(keyboard));
+  }
+  // });
 });
+
 bot.on('message', async ctx => {
   //bot listens to any message
   if (ctx.from.username == null) {
-    var nousrmsg = 'Please set a username first then contact the bot again!!!!!';
+    var noUserMsg = 'Please set a username first then contact the bot again!!!!!';
     ctx.telegram.sendMessage(ctx.from.id, ctx.from);
-    ctx.telegram.sendMessage(ctx.from.id, nousrmsg);
+    ctx.telegram.sendMessage(ctx.from.id, noUserMsg);
   } else {
-    console.log('sesison found in message:', ctx.session.found);
-    ctx.session.refNumber = ctx.from.id.toString();
-    if (ctx.session.found != '1') {
-      findExistingAsync(ctx).then(function (uid) {
-        //wait for promise to complete.
-      });
-    }
-    console.log('ref by name', ctx.session.refByName);
-    if (ctx.session.refByName == null) {
-      //checks if refbyname exists, speeds up concurrent calls.
-      refByNameAsync(ctx).then(function (uid) {
-        stepCheck(ctx).then(function (a) {
-          // var msg = makeMessage(ctx);
-          // ctx.telegram.sendMessage(ctx.from.id, msg, Extra.HTML().markup(keyboard));
-        });
-      });
-    } else {
-      stepCheck(ctx).then(function (a) {
-        // var msg = makeMessage(ctx);
-        // ctx.telegram.sendMessage(ctx.from.id, msg, Extra.HTML().markup(keyboard));
-      });
-    }
+    stepCheck(ctx);
+    //   console.log('session found in message:', ctx.session.found);
+    //   ctx.session.refNumber = ctx.from.id.toString();
+    //   if (ctx.session.found != '1') {
+    //     findExistingAsync(ctx).then(function (uid) {
+    //       //wait for promise to complete.
+    //     });
+    //   }
+    //   console.log('ref by name', ctx.session.refByName);
+    //   if (ctx.session.refByName == null) {
+    //     //checks if ref by name exists, speeds up concurrent calls.
+    //     refByNameAsync(ctx).then(function (uid) {
+    //       stepCheck(ctx).then(function (a) {
+    //         // var msg = makeTaskMessage(ctx);
+    //         // ctx.telegram.sendMessage(ctx.from.id, msg, Extra.HTML().markup(keyboard));
+    //       });
+    //     });
+    //   } else {
+    //     stepCheck(ctx).then(function (a) {
+    //       // var msg = makeTaskMessage(ctx);
+    //       // ctx.telegram.sendMessage(ctx.from.id, msg, Extra.HTML().markup(keyboard));
+    //     });
+    //   }
   }
 });
 
-bot.telegram.getMe().then(bot_informations => {
-  bot.options.username = bot_informations.username;
-  console.log('Server has initialized bot nickname. Nick: ' + bot_informations.username);
+// bot.telegram.getMe().then(botInfo => {
+//   bot.options.username = botInfo.username;
+//   console.log('Server has initialized bot nickname. Nick: ' + botInfo.username);
+// });
+
+bot.action('startAirdrop', ctx => {
+  ctx.reply('1.📌  Please input your receiver ETH address.');
+  goNextStep(ctx);
 });
 
-bot.action('delete', ({ deleteMessage }) => deleteMessage());
+// bot.action('twitter', ctx => {
+//   //button click twitter
+//   ctx.reply('Input Twitter username, please.');
+//   goNextStep(ctx);
+// });
 
-bot.action('eth', ctx => {
-  //button click ETH
-  ctx.reply(
-    'Input your ERC-20 compatible Ethereum address (The same address that you put into the airdrop form).'
-  );
-  ctx.session.step = 1;
-});
-
-bot.action('getAirdrop', ctx => {
-  ctx.reply(
-    'Input your ERC-20 compatible Ethereum address (The same address that you put into the airdrop form).'
-  );
-  ctx.session.step = 1;
-});
-
-bot.action('twitter', ctx => {
-  //button click twitter
-  ctx.reply('Input Twitter username, please.');
-  ctx.session.step = 2;
-});
-
-bot.action('refresh', ctx => {
-  //button click refresh data
-  var msg = makeMessage(ctx);
-  refByNameAsync(ctx).then(function (uid) {
-    findExistingAsync(ctx).then(function (uid) {
-      ctx.telegram.sendMessage(ctx.from.id, msg, Extra.HTML().markup(keyboard));
-      ctx.reply('Data has been refreshed!');
-    });
-  });
-});
+// bot.action('refresh', ctx => {
+//   //button click refresh data
+//   var msg = makeTaskMessage(ctx);
+//   refByNameAsync(ctx).then(function (uid) {
+//     findExistingAsync(ctx).then(function (uid) {
+//       ctx.telegram.sendMessage(ctx.from.id, msg, Extra.HTML().markup(keyboard));
+//       ctx.reply('Data has been refreshed!');
+//     });
+//   });
+// });
 
 bot.action('check', async ctx => {
-  //'231399891'
   try {
-    let user = await ctx.getChatMember(ctx.from.id, '231399891');
+    let user = await ctx.getChatMember(ctx.from.id, GROUP_ID);
     if (user && !user.is_bot) {
       ctx.session.joinTele = '1';
     }
   } catch (e) {
-    console.log(e);
+    console.log('not join telegram yet.');
   }
-  var msg = await check(ctx);
-  var info = makeMessage(ctx);
+
+  var status = getStatusMessage(ctx);
   var keyboard = Markup.inlineKeyboard([Markup.callbackButton('Check ✅', 'check')], {
     columns: 1,
   });
-  ctx.telegram.sendMessage(ctx.from.id, info + '\n \n' + msg, Extra.HTML().markup(keyboard));
+  ctx.telegram.sendMessage(ctx.from.id, status, Extra.HTML().markup(keyboard));
 });
 
 bot.action('confirm', ctx => {
@@ -546,3 +568,5 @@ bot.action('confirm', ctx => {
 });
 bot.use(rateLimit(buttonsLimit));
 bot.startPolling(); //MUST HAVE
+
+//0x293a4037296D188a24F167f36924afF05FDF9eee

@@ -14,26 +14,6 @@ var UserSchema = mongoose.Schema({
     type: String,
     required: true,
   },
-  refNumber: {
-    type: String,
-    required: true,
-  },
-  refBy: {
-    type: String,
-    required: false,
-  },
-  bitcointalk: {
-    type: String,
-    required: false,
-  },
-  medium: {
-    type: String,
-    required: false,
-  },
-  instagram: {
-    type: String,
-    required: false,
-  },
   creationDate: {
     type: String,
     required: false,
