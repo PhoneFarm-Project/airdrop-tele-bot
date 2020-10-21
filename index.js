@@ -1,48 +1,32 @@
+require('dotenv').config();
+const Twitter = require('twitter-lite');
 const Telegraf = require('telegraf'); // Module to use Telegraf API.
-const config = require('./config'); // Configuration file that holds telegraf_token API key.
 const session = require('telegraf/session');
 const Extra = require('telegraf/extra');
 const Markup = require('telegraf/markup');
 const rateLimit = require('telegraf-ratelimit');
-var mongoose = require('mongoose');
-const User = require('./user');
 var ethereum_address = require('ethereum-address'); //used for verifying eth address
 
-const SHARE_TWEET = 'https://twitter.com/PhonefarmF/status/1316991901879267330';
-const GROUP_ID = '231399891';
+const SHARE_TWEET = process.env.SHARE_TWEET;
+const GROUP_ID = process.env.GROUP_ID;
 
-mongoose.connect(config.database, {
-  socketTimeoutMS: 45000,
-  keepAlive: true,
-  poolSize: 10,
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-const db = mongoose.connection;
-
-// CONNECTION EVENTS
-// When successfully connected
-mongoose.connection.on('connected', function () {
-  console.log('Mongoose default connection open to ');
+const twitterClient = new Twitter({
+  consumer_key: process.env.CONSUMER_KEY,
+  consumer_secret: process.env.CONSUMER_SECRET,
+  access_token_key: process.env.ACCESS_TOKEN,
+  access_token_secret: process.env.ACCESS_TOKEN_SECRET,
 });
 
-// If the connection throws an error
-mongoose.connection.on('error', function (err) {
-  console.log('Mongoose default connection error: ' + err);
-});
-
-// When the connection is disconnected
-mongoose.connection.on('disconnected', function () {
-  console.log('Mongoose default connection disconnected');
-});
-
-// If the Node process ends, close the Mongoose connection
-process.on('SIGINT', function () {
-  mongoose.connection.close(function () {
-    console.log('Mongoose default connection disconnected through app termination');
-    process.exit(0);
-  });
-});
+async function accountExist(screen_name) {
+  try {
+    await twitterClient.get('users/show', {
+      screen_name,
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 const buttonsLimit = {
   //sets a limit for user clicks
@@ -59,213 +43,8 @@ const buttonsLimit = {
   },
 };
 
-//check connection
-
-db.once('open', function () {
-  console.log('connected to mongodb');
-});
-db.on('error', function (err) {
-  console.log(err);
-});
-
-var refByNameAsync = function (ctx) {
-  //finds and returns the name of the referrer
-  return new Promise(function (resolve, reject) {
-    try {
-      var RefBy = ctx.session.refBy;
-      var findQuery = {
-        refNumber: RefBy,
-      };
-      User.findOne(findQuery, function (err, result) {
-        if (err) throw err;
-        if (result == null) {
-          //if user doesn't exist
-          ctx.session.refByName = '/';
-          resolve('found none');
-          return false;
-        } else {
-          //if user exists, return it's data
-          ctx.session.refByName = result.telegramUser;
-          resolve('works');
-          console.log('Found TG USER REFER BY:', ctx.session.refByName);
-        }
-      });
-    } catch (e) {
-      reject(e);
-      console.log(e);
-    }
-  });
-};
-var checkDataAsync = function (ctx) {
-  //checks the input user data
-  return new Promise(function (resolve, reject) {
-    try {
-      if (ethereum_address.isAddress(ctx.session.eth.toString())) {
-        resolve(true);
-        return true;
-      } else {
-        resolve(false);
-        return false;
-      }
-    } catch (e) {
-      reject('error');
-      console.log(e);
-    }
-  });
-};
-var findExistingAsync = function (ctx) {
-  return new Promise((resolve, reject) => {
-    try {
-      console.log('Finding user in refer database...');
-      var userID = ctx.from.id.toString();
-      User.findOne(
-        {
-          refNumber: userID,
-        },
-        (err, result) => {
-          if (err) throw err;
-          if (result == null) {
-            console.log('user has no refer');
-            resolve("user doesn't exist");
-            return;
-          }
-          //returns data if user exists in
-          console.log('user found!');
-          var refNumber = ctx.session.refNumber;
-          console.log('REF number in finding exist:', refNumber);
-          User.countDocuments(
-            {
-              refBy: refNumber,
-            },
-            function (err, count) {
-              ctx.session.count = count;
-              console.log('count is:', count);
-            }
-          );
-          console.log('result ===========', result);
-          ctx.session.eth = result.ethAddress;
-          ctx.session.twitter = result.twitterUser;
-          ctx.session.refBy = result.refBy;
-          ctx.session.refNumber = result.refNumber;
-          ctx.session.username = result.telegramUser;
-          ctx.session.retweet = result.retweet;
-          ctx.session.joinTele = result.joinTele;
-          ctx.session.followed = result.followed;
-          ctx.session.found = '1';
-          resolve('User found, returning');
-        }
-      );
-    } catch (e) {
-      reject('error');
-      console.log(e);
-    }
-  });
-};
-
-var saveDataAsync = function (ctx) {
-  //saves data to Mongodb
-  return new Promise(function (resolve, reject) {
-    try {
-      console.log('SAVING DATA');
-      var CreationDate = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, ''); //cleans up creation date
-      var EthAddress = ctx.session.eth.toString();
-      var TwitterUser = ctx.session.twitter.toString();
-      var TelegramUser = ctx.session.username.toString();
-      var RefNumber = ctx.session.refNumber.toString();
-      var RefBy = '0';
-      var Retweet = ctx.session.retweet;
-      var JoinTele = ctx.session.joinTele;
-      var Followed = ctx.session.followed;
-      if (ctx.session.refBy != null) {
-        RefBy = ctx.session.refBy;
-      } else {
-        RefBy = '0';
-      }
-      var findQuery = {
-        refNumber: RefNumber,
-      };
-      User.findOne(findQuery, function (err, result) {
-        console.log('FIND ONE');
-        let me = new User({
-          ethAddress: EthAddress,
-          twitterUser: TwitterUser,
-          telegramUser: TelegramUser,
-          refNumber: RefNumber,
-          refBy: RefBy,
-          creationDate: CreationDate,
-          retweet: Retweet,
-          joinTele: JoinTele,
-          followed: Followed,
-        });
-
-        if (err) {
-          reject('error');
-        }
-        console.log('finding result', result);
-        if (result == null) {
-          //if it doesn't find an existing user, saves the current data
-          me.save(function (err) {
-            if (err) {
-              reject('error saving');
-              console.log('Error while saving:', err);
-              return;
-            } else {
-              resolve('Saved data');
-              console.log('1 document inserted');
-            }
-          });
-        } else {
-          //if it finds an existing user, it updates the data
-          User.findOneAndUpdate(
-            {
-              refNumber: RefNumber,
-            },
-            {
-              $set: {
-                ethAddress: EthAddress,
-                twitterUser: TwitterUser,
-                telegramUser: TelegramUser,
-                refNumber: RefNumber,
-                refBy: RefBy,
-                creationDate: CreationDate,
-                retweet: Retweet,
-                joinTele: JoinTele,
-                followed: Followed,
-              },
-            },
-            {
-              new: true,
-            },
-            (err, doc) => {
-              if (err) {
-                reject('error updating');
-                console.log('error updating:', err);
-              } else {
-                resolve('Saved existing data');
-                ctx.session.step = 6;
-                console.log(doc);
-              }
-            }
-          );
-        }
-      });
-    } catch (e) {
-      reject('error');
-      console.log(e);
-    }
-  });
-};
-
-//keyboard
 const keyboard = Markup.inlineKeyboard(
-  [
-    // Markup.callbackButton('ETH🔑', 'eth'),
-    // Markup.callbackButton('🐦Twitter', 'twitter'),
-    // Markup.callbackButton('♻️Refresh', 'refresh'),
-    // Markup.callbackButton('Check ✅', 'check'),
-    // Markup.callbackButton('Confirm 🏁', 'confirm'),
-    Markup.callbackButton('Get your PhoneFarm Airdrop! 🌱', 'startAirdrop'),
-  ],
+  [Markup.callbackButton('Get your PhoneFarm Airdrop! 🌱', 'startAirdrop')],
   {
     columns: 2,
   }
@@ -294,28 +73,28 @@ function firstMessage(ctx) {
 }
 
 function getStatusMessage(ctx) {
-  console.log('status checking', ctx.session);
+  // console.log('status checking', ctx.session);
   let finalResult;
 
   finalResult = '👤 Username: ';
   finalResult += ctx.from.username;
   finalResult += '\n';
-  finalResult += '🔑ETH Address: ';
+  finalResult += '🔑 ETH Address: ';
   finalResult += ctx.session.eth || '';
   finalResult += '\n';
-  finalResult += '🐦Twitter username: ';
+  finalResult += '🐦 Twitter username: ';
   finalResult += ctx.session.twitter || '';
   finalResult += '\n';
   finalResult += '\n';
 
-  finalResult += '1.📌 Filled ETH address';
+  finalResult += '1.📌 Fill ETH address';
   if (ctx.session.eth) {
     finalResult += ' ✅';
   } else {
     finalResult += ' ❌';
   }
   finalResult += '\n';
-  finalResult += '2.📌 Filled in Twitter address';
+  finalResult += '2.📌 Fill Twitter address';
   if (ctx.session.twitter) {
     finalResult += ' ✅';
   } else {
@@ -346,30 +125,12 @@ function getStatusMessage(ctx) {
   return finalResult;
 }
 
-// function makeTaskMessage(ctx) {
-//   var finalResult;
-//   finalResult = '👤 Username: ';
-//   finalResult += ctx.from.username;
-//   finalResult += '\n';
-//   finalResult += '🔑ETH Address: ';
-//   finalResult += ctx.session.eth;
-//   finalResult += '\n';
-//   finalResult += '🐦Twitter username: ';
-//   finalResult += ctx.session.twitter;
-//   finalResult += '\n';
-//   return finalResult;
-// }
-
 async function initUserState(ctx) {
-  if (ctx.session.found != '1') {
-    ctx.session.eth = '';
-    ctx.session.twitter = '';
-    ctx.session.followed = '0';
-    ctx.session.retweet = '0';
-    ctx.session.joinTele = '0';
-  } else {
-    //values already set
-  }
+  ctx.session.eth = '';
+  ctx.session.twitter = '';
+  ctx.session.followed = '0';
+  ctx.session.retweet = '0';
+  ctx.session.joinTele = '0';
 }
 
 function goNextStep(ctx) {
@@ -377,7 +138,7 @@ function goNextStep(ctx) {
   else if (ctx.session.twitter === '') ctx.session.step = 2;
   else if (ctx.session.followed === '0') ctx.session.step = 3;
   else if (ctx.session.retweet === '0') ctx.session.step = 4;
-  else if (ctx.session.joinTele === '0') ctx.session.step = 5;
+  else ctx.session.step = 5;
 }
 
 async function stepCheck(ctx) {
@@ -386,7 +147,6 @@ async function stepCheck(ctx) {
       console.log('step 1: check valid eth address');
       if (ethereum_address.isAddress(ctx.message.text.toString())) {
         ctx.session.eth = ctx.message.text;
-        console.log(ctx.session.eth, ctx.message.text);
         goNextStep(ctx);
         ctx.reply('2.📌  Please input your Twitter username:');
       } else {
@@ -395,178 +155,115 @@ async function stepCheck(ctx) {
       break;
     case 2:
       console.log('step 2: check Twitter username');
-      ctx.session.twitter = ctx.message.text;
-      await ctx.reply('3.📌  Please follow us on Twitter: https://twitter.com/PhonefarmF');
-      var keyboard = Markup.inlineKeyboard([Markup.callbackButton('Check ✅', 'check')], {
+      let acc = ctx.message.text;
+      let accExist = await accountExist(acc);
+      if (!accExist) {
+        ctx.reply('2.📌  Please input a valid Twitter username:');
+      } else {
+        goNextStep(ctx);
+        ctx.session.twitter = ctx.message.text;
+        await ctx.reply('3.📌  Please follow us on Twitter: https://twitter.com/PhonefarmF');
+        var keyboard = Markup.inlineKeyboard([Markup.callbackButton('DONE ✅', 'check')], {
+          columns: 1,
+        });
+        ctx.telegram.sendMessage(
+          ctx.from.id,
+          'When it done, please hit the DONE button bellow!',
+          Extra.HTML().markup(keyboard)
+        );
+      }
+      break;
+    case 3:
+      console.log('step 3: check follow on Twitter');
+      await ctx.reply(`4.📌  Please retweet our campaign tweet: ${SHARE_TWEET}`);
+      var keyboard = Markup.inlineKeyboard([Markup.callbackButton('DONE ✅', 'check')], {
         columns: 1,
       });
       ctx.telegram.sendMessage(
         ctx.from.id,
-        'When it done, please check status by hit the ✅ button bellow!',
+        'When it done, please hit the DONE button bellow!',
         Extra.HTML().markup(keyboard)
       );
       break;
-    case 3:
-      console.log('step 3: check follow on Twitter');
-      break;
     case 4:
       console.log('step 4: check retweet');
-      break;
-    case 5:
-      console.log('step 5: check join channel');
+      try {
+        let user = await ctx.telegram.getChatMember(GROUP_ID, ctx.from.id);
+        if (user && !user.is_bot) {
+          ctx.session.joinTele = '1';
+          ctx.session.step = 5;
+        }
+        var status = getStatusMessage(ctx);
+        var keyboard = Markup.inlineKeyboard([Markup.callbackButton('SUBMIT ✅', 'submit')], {
+          columns: 1,
+        });
+        ctx.telegram.sendMessage(ctx.from.id, status, Extra.HTML().markup(keyboard));
+      } catch (e) {
+        console.log('not join telegram yet.');
+        await ctx.reply(`5.📌 Please join our channel: https://t.me/phonefarm_official'`);
+        var keyboard = Markup.inlineKeyboard([Markup.callbackButton('DONE ✅', 'check')], {
+          columns: 1,
+        });
+        ctx.telegram.sendMessage(
+          ctx.from.id,
+          'When it done, please hit the DONE button bellow!',
+          Extra.HTML().markup(keyboard)
+        );
+      }
       break;
     default:
+      console.log('other message');
       break;
   }
 }
 
-//bot init
-const bot = new Telegraf(config.telegraf_token); // Let's instantiate a bot using our token.
+const bot = new Telegraf(process.env.TELEGRAM_TOKEN); // Let's instantiate a bot using our token.
 bot.use(session());
 // bot.use(Telegraf.log());
 
 bot.start(async ctx => {
-  //bot start
-  //parameter parsing
-  // ctx.session.refByName = '/';
-  // ctx.session.count = 0;
-  // findExistingAsync(ctx).then(function (uid) {
-  // var len = ctx.message.text.length;
   if (ctx.from.username == null) {
-    //user must have a valid username set.
     ctx.telegram.sendMessage(
       ctx.from.id,
       'Please set a username first then contact the bot again!'
     );
   } else {
-    // ctx.session.username = ctx.from.username;
-    // var ref = ctx.message.text.slice(7, len);
-    // ctx.session.refBy = ref;
-    // console.log('ref:', ref);
-    // if (ref.length != 0) {
-    //   var refMsg = 'Referred by: ' + ctx.session.refBy;
-
-    //   ctx.session.refNumber = ctx.from.id.toString();
-    //   ctx.telegram.sendMessage(ctx.from.id, refMsg);
-    //   console.log('refer', ctx.session.refBy);
-    // } else {
-    //   ctx.session.refNumber = ctx.from.id.toString();
-    //   console.log('session ref number:', ctx.session.refNumber);
-    // }
-    //save referer
-    // ctx.session.telegram = ctx.message.chat.username;
-    // ctx.session.language = ctx.message.from.language_code;
-
     initUserState(ctx);
     var msg = firstMessage(ctx);
-    // var msg = makeTaskMessage(ctx);
-
     ctx.telegram.sendMessage(ctx.from.id, msg, Extra.markup(keyboard));
   }
-  // });
 });
 
 bot.on('message', async ctx => {
-  //bot listens to any message
   if (ctx.from.username == null) {
     var noUserMsg = 'Please set a username first then contact the bot again!!!!!';
     ctx.telegram.sendMessage(ctx.from.id, ctx.from);
     ctx.telegram.sendMessage(ctx.from.id, noUserMsg);
   } else {
     stepCheck(ctx);
-    //   console.log('session found in message:', ctx.session.found);
-    //   ctx.session.refNumber = ctx.from.id.toString();
-    //   if (ctx.session.found != '1') {
-    //     findExistingAsync(ctx).then(function (uid) {
-    //       //wait for promise to complete.
-    //     });
-    //   }
-    //   console.log('ref by name', ctx.session.refByName);
-    //   if (ctx.session.refByName == null) {
-    //     //checks if ref by name exists, speeds up concurrent calls.
-    //     refByNameAsync(ctx).then(function (uid) {
-    //       stepCheck(ctx).then(function (a) {
-    //         // var msg = makeTaskMessage(ctx);
-    //         // ctx.telegram.sendMessage(ctx.from.id, msg, Extra.HTML().markup(keyboard));
-    //       });
-    //     });
-    //   } else {
-    //     stepCheck(ctx).then(function (a) {
-    //       // var msg = makeTaskMessage(ctx);
-    //       // ctx.telegram.sendMessage(ctx.from.id, msg, Extra.HTML().markup(keyboard));
-    //     });
-    //   }
   }
 });
-
-// bot.telegram.getMe().then(botInfo => {
-//   bot.options.username = botInfo.username;
-//   console.log('Server has initialized bot nickname. Nick: ' + botInfo.username);
-// });
 
 bot.action('startAirdrop', ctx => {
   ctx.reply('1.📌  Please input your receiver ETH address.');
   goNextStep(ctx);
 });
 
-// bot.action('twitter', ctx => {
-//   //button click twitter
-//   ctx.reply('Input Twitter username, please.');
-//   goNextStep(ctx);
-// });
-
-// bot.action('refresh', ctx => {
-//   //button click refresh data
-//   var msg = makeTaskMessage(ctx);
-//   refByNameAsync(ctx).then(function (uid) {
-//     findExistingAsync(ctx).then(function (uid) {
-//       ctx.telegram.sendMessage(ctx.from.id, msg, Extra.HTML().markup(keyboard));
-//       ctx.reply('Data has been refreshed!');
-//     });
-//   });
-// });
-
 bot.action('check', async ctx => {
-  try {
-    let user = await ctx.getChatMember(ctx.from.id, GROUP_ID);
-    if (user && !user.is_bot) {
-      ctx.session.joinTele = '1';
-    }
-  } catch (e) {
-    console.log('not join telegram yet.');
+  console.log('checking on step ', ctx.session.step);
+  if (ctx.session.step === 2) {
+    ctx.session.followed = '1';
+    ctx.session.step = 3;
+  } else if (ctx.session.step === 3) {
+    ctx.session.retweet = '1';
+    ctx.session.step = 4;
   }
-
-  var status = getStatusMessage(ctx);
-  var keyboard = Markup.inlineKeyboard([Markup.callbackButton('Check ✅', 'check')], {
-    columns: 1,
-  });
-  ctx.telegram.sendMessage(ctx.from.id, status, Extra.HTML().markup(keyboard));
+  stepCheck(ctx);
 });
 
-bot.action('confirm', ctx => {
-  //button click confirm
-  checkDataAsync(ctx).then(function (uid) {
-    var check = uid;
-    console.log('CHECK', check);
-    refByNameAsync(ctx).then(function (uid) {
-      if (check == true) {
-        saveDataAsync(ctx).then(function (uid) {
-          var msg;
-          msg = 'Completed.';
-          msg += '\n';
-          msg += 'Please use this referral link';
-          msg += '\n';
-          msg += 'https://t.me/phonefarmBot?start=';
-          msg += ctx.session.refNumber;
-          ctx.reply(msg);
-        });
-      } else {
-        ctx.reply('Please input all data');
-      }
-    });
-  });
+bot.action('submit', ctx => {
+  console.log('submit data ', ctx.session);
 });
+
 bot.use(rateLimit(buttonsLimit));
 bot.startPolling(); //MUST HAVE
-
-//0x293a4037296D188a24F167f36924afF05FDF9eee

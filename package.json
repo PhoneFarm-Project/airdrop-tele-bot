@@ -18,7 +18,8 @@
     "request": "^2.87.0",
     "s": "^0.1.1",
     "telegraf": "^3.6.4",
-    "telegraf-ratelimit": "^2.0.0"
+    "telegraf-ratelimit": "^2.0.0",
+    "twitter-lite": "^0.14.0"
   },
   "devDependencies": {},
   "repository": {
