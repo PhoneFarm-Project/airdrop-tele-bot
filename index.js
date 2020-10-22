@@ -1,4 +1,5 @@
 require('dotenv').config();
+const fetch = require('node-fetch');
 const Twitter = require('twitter-lite');
 const Telegraf = require('telegraf'); // Module to use Telegraf API.
 const session = require('telegraf/session');
@@ -16,6 +17,8 @@ const twitterClient = new Twitter({
   access_token_key: process.env.ACCESS_TOKEN,
   access_token_secret: process.env.ACCESS_TOKEN_SECRET,
 });
+
+const SERVER_URL = process.env.SERVER_URL;
 
 async function accountExist(screen_name) {
   try {
@@ -116,7 +119,7 @@ function getStatusMessage(ctx) {
   }
   finalResult += '\n';
   finalResult += '5.📌 Join our channel: https://t.me/phonefarm_official';
-  if (ctx.session.telegram === '1') {
+  if (ctx.session.telegram === ctx.from.username) {
     finalResult += ' ✅';
   } else {
     finalResult += ' ❌';
@@ -130,7 +133,7 @@ async function initUserState(ctx) {
   ctx.session.twitter = '';
   ctx.session.following = '0';
   ctx.session.retweet = '0';
-  ctx.session.telegram = '0';
+  ctx.session.telegram = '';
 }
 
 function goNextStep(ctx) {
@@ -192,7 +195,7 @@ async function stepCheck(ctx) {
       try {
         let user = await ctx.telegram.getChatMember(GROUP_ID, ctx.from.id);
         if (user && !user.is_bot) {
-          ctx.session.telegram = '1';
+          ctx.session.telegram = ctx.from.username;
           ctx.session.step = 5;
         }
         var status = getStatusMessage(ctx);
@@ -230,9 +233,16 @@ bot.start(async ctx => {
       'Please set a username first then contact the bot again!'
     );
   } else {
-    initUserState(ctx);
-    var msg = firstMessage(ctx);
-    ctx.telegram.sendMessage(ctx.from.id, msg, Extra.markup(keyboard));
+    const regStatus = await fetch(`${SERVER_URL}/status/tele/${ctx.from.username}`);
+    if (regStatus.status === 200) {
+      ctx.reply("You've registered for the airdrop. Please wait for token claim.");
+    } else if (regStatus.status === 500) {
+      ctx.reply('Something went wrong. Please try again later.');
+    } else {
+      initUserState(ctx);
+      var msg = firstMessage(ctx);
+      ctx.telegram.sendMessage(ctx.from.id, msg, Extra.markup(keyboard));
+    }
   }
 });
 
@@ -263,8 +273,19 @@ bot.action('check', async ctx => {
   stepCheck(ctx);
 });
 
-bot.action('submit', ctx => {
+bot.action('submit', async ctx => {
   console.log('submit data ', ctx.session);
+  const response = await fetch(`${SERVER_URL}/register`, {
+    method: 'POST',
+    body: JSON.stringify(ctx.session),
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (response.status == 200) {
+    ctx.reply('Congratulation! Register successfully. Please stayed tune for token claim.');
+  } else {
+    ctx.reply('Something went wrong. Please try again later.');
+  }
 });
 
 bot.use(rateLimit(buttonsLimit));
