@@ -284,7 +284,7 @@ bot.action('submit', async ctx => {
   if (response.status == 200) {
     ctx.reply('Congratulation! Register successfully. Please stayed tune for token claim.');
   } else {
-    ctx.reply('Something went wrong. Please try again later.');
+    ctx.reply("You've registered for the airdrop. Please wait for token claim.");
   }
 });
 
