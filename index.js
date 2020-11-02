@@ -227,23 +227,24 @@ bot.use(session());
 // bot.use(Telegraf.log());
 
 bot.start(async ctx => {
-  if (ctx.from.username == null) {
-    ctx.telegram.sendMessage(
-      ctx.from.id,
-      'Please set a username first then contact the bot again!'
-    );
-  } else {
-    const regStatus = await fetch(`${SERVER_URL}/status/tele/${ctx.from.username}`);
-    if (regStatus.status === 200) {
-      ctx.reply("You've registered for the airdrop. Please wait for token claim.");
-    } else if (regStatus.status === 500) {
-      ctx.reply('Airdrop Ended. Stayed tune for more information.');
-    } else {
-      initUserState(ctx);
-      var msg = firstMessage(ctx);
-      ctx.telegram.sendMessage(ctx.from.id, msg, Extra.markup(keyboard));
-    }
-  }
+  ctx.reply('Airdrop Ended. Stayed tune for more information.');
+  // if (ctx.from.username == null) {
+  //   ctx.telegram.sendMessage(
+  //     ctx.from.id,
+  //     'Please set a username first then contact the bot again!'
+  //   );
+  // } else {
+  //   const regStatus = await fetch(`${SERVER_URL}/status/tele/${ctx.from.username}`);
+  //   if (regStatus.status === 200) {
+  //     ctx.reply("You've registered for the airdrop. Please wait for token claim.");
+  //   } else if (regStatus.status === 500 ) {
+  //     ctx.reply('Airdrop Ended. Stayed tune for more information.');
+  //   } else {
+  //     initUserState(ctx);
+  //     var msg = firstMessage(ctx);
+  //     ctx.telegram.sendMessage(ctx.from.id, msg, Extra.markup(keyboard));
+  //   }
+  // }
 });
 
 bot.on('message', async ctx => {
