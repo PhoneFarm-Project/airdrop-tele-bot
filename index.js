@@ -237,7 +237,7 @@ bot.start(async ctx => {
     if (regStatus.status === 200) {
       ctx.reply("You've registered for the airdrop. Please wait for token claim.");
     } else if (regStatus.status === 500) {
-      ctx.reply('Something went wrong. Please try again later.');
+      ctx.reply('Airdrop Ended. Stayed tune for more information.');
     } else {
       initUserState(ctx);
       var msg = firstMessage(ctx);
