@@ -39,15 +39,15 @@ const buttonsLimit = {
     if ('callback_query' in ctx.update)
       ctx
         .answerCbQuery('You`ve pressed buttons too often, wait.', true)
-        .catch(err => sendError(err, ctx));
+        .catch((err) => sendError(err, ctx));
   },
-  keyGenerator: ctx => {
+  keyGenerator: (ctx) => {
     return ctx.callbackQuery ? true : false;
   },
 };
 
 const keyboard = Markup.inlineKeyboard(
-  [Markup.callbackButton('Get your PhoneFarm Airdrop! 🌱', 'startAirdrop')],
+  [Markup.callbackButton('Get your Mochi Airdrop! 🌱', 'startAirdrop')],
   {
     columns: 2,
   }
@@ -55,20 +55,20 @@ const keyboard = Markup.inlineKeyboard(
 
 function firstMessage(ctx) {
   var msg;
-  msg = `🔥 Hi ${ctx.from.first_name} ${ctx.from.last_name}, welcome to PhoneFarm Airdrop bot! 🔥`;
+  msg = `🔥 Hi ${ctx.from.first_name} ${ctx.from.last_name}, welcome to Mochi Airdrop bot! 🔥`;
   msg += '\n';
-  msg += 'Please follow the instructions to get 10 PHONE Token 📱';
+  msg += 'Please follow the instructions to get 10 MOCHI Token 📱';
   msg += '\n';
   msg += '\n';
   msg += '1.📌 Submit your receiver ETH address.';
   msg += '\n';
   msg += '2.📌 Submit your Twitter username.';
   msg += '\n';
-  msg += '3.📌 Follow us on Twitter: https://twitter.com/PhonefarmF';
+  msg += '3.📌 Follow us on Twitter: https://twitter.com/MarketMochi';
   msg += '\n';
   msg += `4.📌 Retweet our campaign tweet with 2 friends mention: ${SHARE_TWEET}`;
   msg += '\n';
-  msg += '5.📌 Join our channel: https://t.me/phonefarm_official';
+  msg += '5.📌 Join our channel: https://t.me/mochimarketnews';
   msg += '\n';
   msg += '\n';
 
@@ -104,7 +104,7 @@ function getStatusMessage(ctx) {
     finalResult += ' ❌';
   }
   finalResult += '\n';
-  finalResult += '3.📌 Follow us on Twitter: https://twitter.com/PhonefarmF';
+  finalResult += '3.📌 Follow us on Twitter: https://twitter.com/MarketMochi';
   if (ctx.session.following === '1') {
     finalResult += ' ✅';
   } else {
@@ -118,7 +118,7 @@ function getStatusMessage(ctx) {
     finalResult += ' ❌';
   }
   finalResult += '\n';
-  finalResult += '5.📌 Join our channel: https://t.me/phonefarm_official';
+  finalResult += '5.📌 Join our channel: https://t.me/mochimarketnews';
   if (ctx.session.telegram === ctx.from.username) {
     finalResult += ' ✅';
   } else {
@@ -165,7 +165,7 @@ async function stepCheck(ctx) {
       } else {
         goNextStep(ctx);
         ctx.session.twitter = ctx.message.text;
-        await ctx.reply('3.📌  Please follow us on Twitter: https://twitter.com/PhonefarmF');
+        await ctx.reply('3.📌  Please follow us on Twitter: https://twitter.com/MarketMochi');
         var keyboard = Markup.inlineKeyboard([Markup.callbackButton('DONE ✅', 'check')], {
           columns: 1,
         });
@@ -205,7 +205,7 @@ async function stepCheck(ctx) {
         ctx.telegram.sendMessage(ctx.from.id, status, Extra.HTML().markup(keyboard));
       } catch (e) {
         console.log('not join telegram yet.');
-        await ctx.reply(`5.📌 Please join our channel: https://t.me/phonefarm_official'`);
+        await ctx.reply(`5.📌 Please join our channel: https://t.me/mochimarketnews'`);
         var keyboard = Markup.inlineKeyboard([Markup.callbackButton('DONE ✅', 'check')], {
           columns: 1,
         });
@@ -226,28 +226,28 @@ const bot = new Telegraf(process.env.TELEGRAM_TOKEN); // Let's instantiate a bot
 bot.use(session());
 // bot.use(Telegraf.log());
 
-bot.start(async ctx => {
-  ctx.reply('Airdrop Ended. Stayed tune for more information.');
-  // if (ctx.from.username == null) {
-  //   ctx.telegram.sendMessage(
-  //     ctx.from.id,
-  //     'Please set a username first then contact the bot again!'
-  //   );
-  // } else {
-  //   const regStatus = await fetch(`${SERVER_URL}/status/tele/${ctx.from.username}`);
-  //   if (regStatus.status === 200) {
-  //     ctx.reply("You've registered for the airdrop. Please wait for token claim.");
-  //   } else if (regStatus.status === 500 ) {
-  //     ctx.reply('Airdrop Ended. Stayed tune for more information.');
-  //   } else {
-  //     initUserState(ctx);
-  //     var msg = firstMessage(ctx);
-  //     ctx.telegram.sendMessage(ctx.from.id, msg, Extra.markup(keyboard));
-  //   }
-  // }
+bot.start(async (ctx) => {
+  // ctx.reply('Airdrop Ended. Stayed tune for more information.');
+  if (ctx.from.username == null) {
+    ctx.telegram.sendMessage(
+      ctx.from.id,
+      'Please set a username first then contact the bot again!'
+    );
+  } else {
+    const regStatus = await fetch(`${SERVER_URL}/status/tele/${ctx.from.username}`);
+    if (regStatus.status === 200) {
+      ctx.reply("You've registered for the airdrop. Please wait for token claim.");
+    } else if (regStatus.status === 500) {
+      ctx.reply('Airdrop Ended. Stayed tune for more information.');
+    } else {
+      initUserState(ctx);
+      var msg = firstMessage(ctx);
+      ctx.telegram.sendMessage(ctx.from.id, msg, Extra.markup(keyboard));
+    }
+  }
 });
 
-bot.on('message', async ctx => {
+bot.on('message', async (ctx) => {
   if (ctx.from.username == null) {
     var noUserMsg = 'Please set a username first then contact the bot again!!!!!';
     ctx.telegram.sendMessage(ctx.from.id, ctx.from);
@@ -257,12 +257,12 @@ bot.on('message', async ctx => {
   }
 });
 
-bot.action('startAirdrop', ctx => {
+bot.action('startAirdrop', (ctx) => {
   ctx.reply('1.📌  Please input your receiver ETH address.');
   goNextStep(ctx);
 });
 
-bot.action('check', async ctx => {
+bot.action('check', async (ctx) => {
   console.log('checking on step ', ctx.session.step);
   if (ctx.session.step === 2) {
     ctx.session.following = '1';
@@ -274,7 +274,7 @@ bot.action('check', async ctx => {
   stepCheck(ctx);
 });
 
-bot.action('submit', async ctx => {
+bot.action('submit', async (ctx) => {
   console.log('submit data ', ctx.session);
   const response = await fetch(`${SERVER_URL}/register`, {
     method: 'POST',
